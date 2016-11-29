@@ -1,0 +1,5 @@
+name = Intro Data
+description = Introduction Data for the same
+dependencies[] = services
+files[] = introdata.module
+core = 7.x

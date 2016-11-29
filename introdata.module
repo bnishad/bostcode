@@ -1,0 +1,628 @@
+﻿<?php
+/**
+ * Implements hook_menu().
+ */
+
+function introdata_menu() 
+{
+$items = array();
+//Hook For the Introduction Screen
+$items['introscreen'] = array(
+   'page callback' => 'introduction',
+   'access arguments' => array('access content'),
+   'type' => MENU_CALLBACK,
+ );
+//Hook For the Change Password 
+ $items['changepassword'] = array(
+   'page callback' => 'changepassword',
+   'access arguments' => array('access content'),
+   'type' => MENU_CALLBACK,
+ );
+//Hook for listing the main sections 
+ $items['mainsection'] = array(
+   'page callback' => 'mainsection',
+   'access arguments' => array('access content'),
+   'type' => MENU_CALLBACK,
+ );
+//Hook for listing the sub-sections 
+ $items['subsection'] = array(
+   'page callback' => 'subsection',
+   'access arguments' => array('access content'),
+   'type' => MENU_CALLBACK,
+ );
+ return $items;
+}
+
+/*Start Displaying the subsection corresponding to a particular main section*/
+function subsection()
+{
+	$postdata = file_get_contents("php://input"); 
+	$post_request = json_decode($postdata, true);
+	
+	$main_section_id = $post_request['id'];
+	//echo $main_section_id;exit;
+	
+	
+	//Load the node for the main section 
+	$main_section = node_load($main_section_id);
+	
+	
+	$main_sect_array = array();
+	$main_sect_array['title'] = $main_section->title;
+	$main_sect_array['intro_text'] = $main_section->field_intro['und']['0']['value'];
+	$main_sect_array['picture'] = file_create_url($main_section->field_photo['und']['0']['uri']);
+	
+	//Start For Gallery Images
+	$count_media_images = count($main_section->field_media['und']);
+	if($count_media_images > 0){	
+		for($i=0;$i<$count_media_images;$i++) {
+			$main_sect_array['gallery'][$i] = file_create_url($main_section->field_media['und'][$i]['uri']);
+		}	
+	}else{
+		$main_sect_array['gallery'] = array();
+	}
+
+	//Start For Downloads
+	$count_downloads = count($main_section->field_download['und']);
+	//echo "<pre>";print_r($main_section->field_download['und']);exit;
+	if($count_downloads > 0){
+		for($j=0;$j<$count_downloads;$j++) {
+			$main_sect_array['downloads'][$j]['id'] = $main_section->field_download['und'][$j]['fid'];
+			$main_sect_array['downloads'][$j]['url'] = file_create_url($main_section->field_download['und'][$j]['uri']);
+			$main_sect_array['downloads'][$j]['filename'] = $main_section->field_download['und'][$j]['filename'];
+		}	
+	}else{
+		$main_sect_array['downloads'] = array();
+	}	
+	
+	//Start For Videos
+	$count_videos = count($main_section->field_videogallery['und']);
+	
+	if($count_videos > 0){
+		for($k=0;$k<$count_videos;$k++) {
+			$main_sect_array['videos'][$k] = file_create_url($main_section->field_videogallery['und'][$k]['uri']);
+		}
+	}else{
+		$main_sect_array['videos'] = array();
+	}	
+	
+	//Start For Website Urls
+	$count_website_urls = count($main_section->field_website_urls['und']);
+	
+	if($count_website_urls > 0){
+		for($l=0;$l<$count_website_urls;$l++) {
+			$main_sect_array['website_urls'][$l]['title'] = $main_section->field_website_urls['und'][$l]['title'];
+			$main_sect_array['website_urls'][$l]['url'] = $main_section->field_website_urls['und'][$l]['url'];
+		}
+	}else{
+		$main_sect_array['website_urls'] = array();
+	}	
+	
+	//Start For Bringing the Contacts
+	$count_contacts = count($main_section->field_contacts['und']);
+	
+	if($count_contacts > 0){
+		for($m=0;$m<$count_contacts;$m++) {
+			$contact_details = entity_load('field_collection_item', array($main_section->field_contacts['und'][$m]['value']));
+				
+			$main_sect_array['contacts'][$m]['office_name'] = $contact_details[$main_section->field_contacts['und'][$m]['value']]->field_field_contact_name['und'][0]['value'];
+			$main_sect_array['contacts'][$m]['contact_person'] = $contact_details[$main_section->field_contacts['und'][$m]['value']]->field_contact_person['und'][0]['value'];
+			$main_sect_array['contacts'][$m]['designation'] = $contact_details[$main_section->field_contacts['und'][$m]['value']]->field_designation['und'][0]['value'];
+			$sub_section_array['contacts'][$m]['address'] = $contact_details[$main_section->field_contacts['und'][$m]['value']]->field_address['und'][0]['value'];
+		}	
+	}else{
+		$main_sect_array['contacts'] = array();
+	}
+	
+	//echo "<pre>";print_r($main_sect_array);exit;
+	//Get the children data from the similar point of view
+$child_nodes = db_query("SELECT node.nid AS nid, node.title AS node_title, 'node' AS field_data_field_reference_node_entity_type, 'node' AS field_data_field_terms_node_entity_type, COALESCE(draggableviews_structure.weight, 2147483647) AS draggableviews_structure_weight_coalesce FROM 
+{node} node LEFT JOIN {field_data_field_reference} field_data_field_reference ON node.nid = field_data_field_reference.entity_id AND field_data_field_reference.entity_type = 'node'
+LEFT JOIN {draggableviews_structure} draggableviews_structure ON node.nid = draggableviews_structure.entity_id AND draggableviews_structure.view_name = 'test' AND draggableviews_structure.view_display = 'page_1' AND draggableviews_structure.args = '[]' WHERE (( (field_data_field_reference.field_reference_target_id = '".$main_section_id."' ) )AND(( (node.status = '1') AND (node.type IN  ('main_section')) ))) ORDER BY draggableviews_structure_weight_coalesce ASC")->fetchAll();
+	//echo "<pre>";print_r($child_nodes);exit;
+	
+	$sub_section_array = array();
+	$sub=0;
+	foreach($child_nodes as $key=>$val){
+		
+		//Load the node for the sub-section
+		$sub_section = node_load($val->nid);
+		
+		$sub_section_array[$sub]['title'] = $sub_section->title;
+		$sub_section_array[$sub]['intro_text'] = $sub_section->field_intro['und']['0']['value'];
+		if(empty($sub_section->field_photo['und']['0']['uri'])){
+			$sub_section_array[$sub]['picture'] = "";
+		}else{
+			$sub_section_array[$sub]['picture'] = file_create_url($sub_section->field_photo['und']['0']['uri']);
+		}
+
+		//Start For Gallery Images
+		$count_media_images = count($sub_section->field_media['und']);
+		if($count_media_images > 0){	
+			for($i=0;$i<$count_media_images;$i++) {
+				$sub_section_array[$sub]['gallery'][$i] = file_create_url($sub_section->field_media['und'][$i]['uri']);
+			}	
+		}else{
+			$sub_section_array[$sub]['gallery'] = array();
+		}
+		
+		//Start For Downloads
+		$count_downloads = count($sub_section->field_download['und']);
+		
+		if($count_downloads > 0){
+			for($j=0;$j<$count_downloads;$j++) {
+				$sub_section_array[$sub]['downloads'][$j]['id'] = $sub_section->field_download['und'][$j]['fid'];
+				$sub_section_array[$sub]['downloads'][$j]['url'] = file_create_url($sub_section->field_download['und'][$j]['uri']);
+				$sub_section_array[$sub]['downloads'][$j]['filename'] = $sub_section->field_download['und'][$j]['filename'];
+			}	
+		}else{
+			$sub_section_array[$sub]['downloads'] = array();
+		}
+		
+		
+		
+		//Start For Videos
+		$count_videos = count($sub_section->field_videogallery['und']);
+	
+		if($count_videos > 0){
+			for($k=0;$k<$count_videos;$k++) {
+				$sub_section_array[$sub]['videos'][$k] = file_create_url($sub_section->field_videogallery['und'][$k]['uri']);
+			}
+		}else{
+			$sub_section_array[$sub]['videos'] = array();
+		}
+
+		//Start For Website Urls
+		$count_website_urls = count($sub_section->field_website_urls['und']);
+	
+		if($count_website_urls > 0){
+			for($l=0;$l<$count_website_urls;$l++) {
+				$sub_section_array[$sub]['website_urls'][$l]['title'] = $sub_section->field_website_urls['und'][$l]['title'];
+				$sub_section_array[$sub]['website_urls'][$l]['url'] = $sub_section->field_website_urls['und'][$l]['url'];
+			}
+		}else{
+			$sub_section_array[$sub]['website_urls'] = array();
+		}
+
+		//Start For Bringing the Contacts
+		$count_contacts = count($sub_section->field_contacts['und']);
+		
+		if($count_contacts > 0){
+			for($m=0;$m<$count_contacts;$m++) {
+				$contact_details = entity_load('field_collection_item', array($sub_section->field_contacts['und'][$m]['value']));
+				
+				$sub_section_array[$sub]['contacts'][$m]['office_name'] = $contact_details[$sub_section->field_contacts['und'][$m]['value']]->field_field_contact_name['und'][0]['value'];
+				$sub_section_array[$sub]['contacts'][$m]['contact_person'] = $contact_details[$sub_section->field_contacts['und'][$m]['value']]->field_contact_person['und'][0]['value'];
+				$sub_section_array[$sub]['contacts'][$m]['designation'] = $contact_details[$sub_section->field_contacts['und'][$m]['value']]->field_designation['und'][0]['value'];
+				$sub_section_array[$sub]['contacts'][$m]['address'] = $contact_details[$sub_section->field_contacts['und'][$m]['value']]->field_address['und'][0]['value'];
+				
+				//For phone number
+				$count_phone = count($contact_details[$sub_section->field_contacts['und'][$m]['value']]->field_phone['und']);
+				$phone = $contact_details[$sub_section->field_contacts['und'][$m]['value']]->field_phone['und'];
+				
+				if(!empty($phone)){
+					foreach($phone as $key=>$val){
+						$sub_section_array[$sub]['contacts'][$m]['phone'][$key]['number'] = $val['value'];
+						$sub_section_array[$sub]['contacts'][$m]['phone'][$key]['type'] = "Home";
+					}	
+				}else{
+					$sub_section_array[$sub]['contacts'][$m]['phone'] = array();
+				}
+				
+				//For Fax
+				$count_fax = count($contact_details[$sub_section->field_contacts['und'][$m]['value']]->field_fax['und']);
+				$fax = $contact_details[$sub_section->field_contacts['und'][$m]['value']]->field_fax['und'];
+				
+			/*	if(!empty($fax as $fkey=>$fval)){
+					$sub_section_array[$sub]['contacts'][$m]['fax'] = $fval['value'];
+				}else{
+					$sub_section_array[$sub]['contacts'][$m]['fax'] = array();
+				}	*/
+				if(!empty($fax)){	
+					foreach($fax as $fkey=>$fval){
+						$sub_section_array[$sub]['contacts'][$m]['fax'][$fkey] = $fval['value'];
+					}
+				}else{
+					$sub_section_array[$sub]['contacts'][$m]['fax'] = array();
+				}
+				
+				
+				
+			}	
+		}else{
+			$sub_section_array[$sub]['contacts'] = array();
+		}	
+		$sub++;
+	}	
+	
+	//echo "<pre>";print_r($sub_section_array);exit;
+	$data = array();
+	$data['main'] = $main_sect_array;
+	$data['sub'] = $sub_section_array;
+		
+	echo drupal_json_output($data);exit;
+}	
+/*End Displaying the subsection corresponding to a particular main section*/
+
+
+/*Start Get the data of the main sections By Manal Shah*/
+function mainsection()
+{
+
+$result = db_query("SELECT node.nid AS nid, node.title AS node_title, COALESCE(draggableviews_structure.weight, 2147483647) AS draggableviews_structure_weight_coalesce FROM {node} node LEFT JOIN {field_data_field_reference} field_data_field_reference ON node.nid = field_data_field_reference.entity_id AND field_data_field_reference.entity_type = 'node' LEFT JOIN {draggableviews_structure} draggableviews_structure ON node.nid = draggableviews_structure.entity_id AND draggableviews_structure.view_name = 'test' AND draggableviews_structure.view_display = 'page_2' AND draggableviews_structure.args = '[]' WHERE (( (node.status = '1') AND (node.type IN  ('main_section')) AND (field_data_field_reference.field_reference_target_id IS NULL ) ))
+ORDER BY draggableviews_structure_weight_coalesce ASC")->fetchAll();
+//echo "<pre>";print_r($result);exit;
+
+$main_section = array();
+	$i=0;
+	foreach($result as $key=>$val){
+		$main_section[$i]['id'] = $val->nid;
+		$main_section[$i]['title'] = $val->node_title;
+		$i++;
+	}
+	
+	$data_section = array();
+	
+	/*Start the Response Format for the Main Section Listing*/
+	if(empty($main_section)){
+		$data_section['is_error'] = 1;
+		$data_section['error_message'] = "Empty Listing";
+	}else{	
+		$data_section['is_error'] = 0;
+		$data_section['error_message'] = "Success";
+		$data_section['main_section'] = $main_section;
+	}
+	/*End the Response Format for the Main Section Listing*/
+	
+	echo drupal_json_output($data_section);exit;
+}	
+/*End Get the data of the main sections - By Manal Shah*/
+
+/*Start Change Password - By Manal Shah */
+function changepassword()
+{
+	$postdata = file_get_contents("php://input"); 
+	$post_request = json_decode($postdata, true);
+
+	$user_id = $post_request['userid'];
+	$old_password = $post_request['old_password'];
+	$new_password = $post_request['new_password'];
+	
+	//First check whether the user exists or not
+	$result = db_query("SELECT COUNT(*) FROM {users} WHERE uid = :uid", array(':uid' => $user_id))->fetchField();
+	
+	if ($result == 0) { 
+		// User doesn't exist return FALSE; 
+		$data = array();
+		$data['is_error'] = 1;
+		$data['error_message'] = "User Does not exist";
+		echo drupal_json_output($data);exit;	
+	}else{
+		$account = user_load($user_id);
+		
+		require_once DRUPAL_ROOT . '/' . variable_get('password_inc', 'includes/password.inc');
+		//Check whether the old password entered is proper or not
+		if (user_check_password($old_password, $account)) {
+			//Check the new password whether it is proper or not
+			if(user_check_password($new_password, $account)){
+				$data = array();
+				$data['is_error'] = 1;
+				$data['error_message'] = "Old and New Password cannot be same";
+				echo drupal_json_output($data);exit;
+			}else {
+				$newhash = user_hash_password($new_password);
+				$updatepass = db_update('users')->fields(array('pass' => $newhash))->condition('uid', $user_id, '=')->execute();
+				$data = array();
+				$data['is_error'] = 0;
+				$data['error_message'] = "Success";
+				echo drupal_json_output($data);exit;
+			}		
+			
+		}else{
+			$data = array();
+			$data['is_error'] = 1;
+			$data['error_message'] = "Old password entered is not correct";
+			echo drupal_json_output($data);exit;
+		}		
+	}	
+	//Check if the old password entered is correct or not
+}	
+/*End Change Password - By Manal Shah*/
+
+function introduction(){
+	$postdata = file_get_contents("php://input"); 
+	$post_request = json_decode($postdata, true);
+	$current_timestamp = time();
+	
+	//In post request will get the timestamp
+	$timestamp = $post_request['timestamp'];
+	if($timestamp == "") {
+		$timestamp = 0;
+	}	
+	
+	//Start For Getting the Slogan and Images
+	$result = db_query("SELECT entity_id from field_data_field_order_slogan order by field_order_slogan_value ASC")->fetchAll();
+	$result_ids = array();
+		
+	foreach($result as $key=>$val){
+		$result_ids[] = $val->entity_id;
+	}	
+	$implode_ids = implode(",",$result_ids);
+	$type = "Slogan_Images";
+	
+	//Load multiple nodes for the following data(For the Slogan and Images)
+	$slogan_images = node_load_multiple($result_ids,array('type' => $type));
+	$final_slogan_images = array();
+	$i =0 ;
+	if(!empty($slogan_images)){
+		foreach($slogan_images as $key=>$val) {
+			//Checking the data whether some data has changed or not
+			if(($val->changed > $timestamp) || ($timestamp == 0)){
+					$final_slogan_images[$i]['id'] = $key;
+					$final_slogan_images[$i]['image_url'] = file_create_url($val->field_intro_image['und'][0]['uri']);
+					$final_slogan_images[$i]['timestamp'] = $val->changed;
+					$final_slogan_images[$i]['slogan'] = $val->field_intro_slogan['und'][0]['value'];
+					if(($timestamp == 0) || ($val->changed == $val->created)) {
+						$final_slogan_images[$i]['status'] = 0;
+					}else{
+						$final_slogan_images[$i]['status'] = 1;
+					}	
+					$i++;
+				}
+			}
+			//After that data that is deleted will come in it
+	}
+			
+	//Have created the deleted contents table and retrieving the data from it
+	$deleted_slogan_images = db_query("SELECT content_id as id,status from deleted_contents where type = 'slogan_images' AND timestamp > ".$timestamp."")->fetchAll();
+	if(!empty($deleted_slogan_images)){
+				$delete_slogan_images_data = array();
+				$j=0;
+				foreach($deleted_slogan_images as $key=>$val){
+					$delete_slogan_images_data[$j]['id'] = $val->id;
+					$delete_slogan_images_data[$j]['status'] = $val->status;
+					$j++;
+				}	
+	}
+	
+	//Check if we have any empty data for the slogan and images and the deleted contents in it 	
+	$final_slogan_images_array = array();
+	if(!empty($final_slogan_images) && (!empty($delete_slogan_images_data))){
+		$final_slogan_images_array = array_merge($final_slogan_images,$delete_slogan_images_data);
+	}elseif(!empty($final_slogan_images)){
+		$final_slogan_images_array = $final_slogan_images;
+	}elseif(!empty($delete_slogan_images_data)){
+		$final_slogan_images_array = $delete_slogan_images_data;
+	}		
+	//End For Getting the Slogan and Images and deleting the contents from it	
+	
+	//Start Getting the sponsor details	
+	$sponsor_result = db_query("SELECT entity_id from field_data_field_sponsor_order order by field_sponsor_order_value ASC")->fetchAll();
+	$sponsor_result_ids = array();
+		
+	foreach($sponsor_result as $key=>$val){
+			$sponsor_result_ids[] = $val->entity_id;
+	}	
+	$sponsor_ids = implode(",",$sponsor_result_ids);
+	$type = "sponsors";
+	//Loading multiple sponsors data in it
+	$sponsors = node_load_multiple($sponsor_result_ids,array('type' => $type));
+	
+	//Start Looping the sponsors and getting the data for the same	
+	$final_sponsors = array();
+	if(!empty($sponsors)){
+		$k = 0;
+		foreach($sponsors as $key=>$val) {
+			if(($val->changed > $timestamp) || ($timestamp == 0)){
+				$final_sponsors[$k]['id'] = $key;
+				$final_sponsors[$k]['image_url'] = file_create_url($val->field_sponsors_image['und'][0]['uri']);
+				$final_sponsors[$k]['timestamp'] = $val->changed;
+				$final_sponsors[$k]['url'] = $val->field_sponsors_link['und'][0]['value'];
+				$final_sponsors[$k]['name'] = $val->title;
+				
+				if(($timestamp == 0) || ($val->changed == $val->created)) {
+					$final_sponsors[$k]['status'] = 0;
+				}else{
+					$final_sponsors[$k]['status'] = 1;
+				}	
+				$k++;
+			}
+		}
+	}
+	//End Looping the sponsors and getting the data for the same
+		
+	//Getting the data of the deleted sponsors 
+	$deleted_sponsors = db_query("SELECT content_id as id,status from deleted_contents where type = 'sponsors' AND timestamp > ".$timestamp."")->fetchAll();
+		
+		if(!empty($deleted_sponsors)){
+				$deleted_sponsors_data = array();
+				$l=0;
+				foreach($deleted_sponsors as $key=>$val){
+					$deleted_sponsors_data[$l]['id'] = $val->id;
+					$deleted_sponsors_data[$l]['status'] = $val->status;
+					$l++;
+				}	
+		}
+		
+		//Check if we have any empty data for the sponsors and the deleted contents in it 	
+		$final_sponsors_array = array();
+		if(!empty($final_sponsors) && (!empty($deleted_sponsors))){
+				$final_sponsors_array = array_merge($final_sponsors,$deleted_sponsors);
+		}elseif(!empty($final_sponsors)){
+				$final_sponsors_array = $final_sponsors;
+		}elseif(!empty($deleted_sponsors)){
+				$final_sponsors_array = $deleted_sponsors;
+		}
+		
+		//Get the interval of data through the Slogan and Images
+		$slogan_images_interval = node_load(49);
+		//echo "<pre>";print_r($slogan_images_interval);exit;
+		$execution_time = "";
+		if(!empty($slogan_images_interval)){
+			$execution_time = $slogan_images_interval->field_execution_time['und'][0]['value'];
+			//echo $execution_time;exit;	
+		}	
+		
+		//Start the response for the Slogan/Images and the Sponsors Data
+		$data = array();
+		$data['slogan_images'] = $final_slogan_images_array;
+		$data['sponsor'] = $final_sponsors_array;
+		$data['is_error'] = 0;
+		$data['interval'] = intval($execution_time);
+		$data['current_timestamp'] = time();
+		
+		echo drupal_json_output($data);exit;	
+		//End the response for the Slogan/Images and the Sponsors Data
+}	
+
+/*Start When the node is deleted insert the data in the custom table that is deleted contents*/
+function introdata_node_delete($node) {
+	if(($node->type == "slogan_images") || ($node->type == "sponsors")){
+		$content_id = $node->vid;
+		$content_type = $node->type;
+		$content_timestamp = time();
+		$content_status = 2;
+	
+		$nid = db_insert('deleted_contents') // Table name no longer needs {}
+			->fields(array(
+				'content_id' => $content_id,
+				'type' => $content_type,
+				'timestamp' => $content_timestamp,
+				'status' => $content_status
+			))
+			->execute();
+	}
+	
+	
+}	
+/*End When the node is deleted insert the data in the custom table that is deleted contents*/
+
+/*Start Hooks for the services module if we want to alter the response*/
+function introdata_services_request_postprocess_alter($controller, $args, &$result) {
+	
+	//Start Alter the response when the user requests a new password
+	if ($controller['callback'] == '_user_resource_request_new_password') {
+		$forgot_password = array();
+		if (!isset($result->uid)) {
+			$forgot_password['is_error'] = 1;
+			$forgot_password['error_message'] = "Invalid Email Address";
+		}else{
+			
+			require_once DRUPAL_ROOT . '/' . variable_get('password_inc', 'includes/password.inc');
+			// Generate new password hash.
+			$pass = substr( md5(rand()), 0, 7);
+			$password_hash = user_hash_password($pass);
+			
+			
+			$result->pass = $password_hash;
+			user_save($result);
+			
+			$forgot_password['is_error'] = 0;
+			$forgot_password['error_message'] = "Success";
+			$forgot_password['password'] = $pass;
+			
+			
+		}
+		echo drupal_json_output($forgot_password);exit;
+	}
+	//End Alter the response when the user requests a new password	
+
+	//Start Alter the response of the country web service
+	if($controller['view info']['view_name'] == "country") {
+		header('Content-Type: text/html; charset=utf-8');
+		mysql_set_charset('utf8');
+		$page_contents = node_load(35);
+		$page_data = $page_contents->body['und'][0]['safe_value'];
+		
+		
+		// Get the data for the count once the data of the terms and conditions are updated in it
+		$count_terms_conditions_updates = db_query("SELECT count(nid) as count from node_revision where nid = 35")->fetchAll();
+		$updates = $count_terms_conditions_updates[0]->count;
+		
+		//Get the countries list with the count	
+		$count_countries =  count($result[0]->botswana_country);
+		
+		//Start Response of the Country data with the terms and conditions 
+		$country_data = array();
+		$country_data['country'] = $result[0]->botswana_country;
+		$country_data['count'] = $count_countries;
+		$country_data['terms_conditions'] = $page_data;
+		$country_data['id'] = $updates;
+		$country_data['is_error'] = 0;
+		//End Response of the Country data with the terms and conditions
+		echo drupal_json_output($country_data);exit;
+	}
+
+	//Alter the response of the Callback User Create
+	if ($controller['callback'] == '_user_resource_create') {
+		if(isset($result['uid']) && !empty($result['uid'])){
+				global $user;
+				
+				//Load the user once again 
+			    $account = user_load($result['uid']);
+				// Change user from 'blocked' to 'active'.
+				user_save($account, array('status'=> 1));
+				
+				//Authenticate the user as once the user registers need to send the data after committed 
+				$username = $args[0]['name'];
+				$pass = $args[0]['pass'];
+				$userRecord = user_authenticate($username, $pass);
+				$form_state['uid'] = $userRecord; 
+				$user_data = user_login_submit(array(), $form_state); 
+				
+				//Response once the user registers and login
+				$registered_data = array();
+				$registered_data['uid'] = $user->uid;
+				$registered_data['name'] = $user->name;
+				$registered_data['mail'] = $user->mail;
+				$registered_data['created'] = $user->created;
+				$registered_data['access'] = $user->access;
+				$registered_data['login'] = $user->login;
+				$registered_data['status'] = $user->status;
+				$registered_data['timezone'] = $user->timezone;
+				$registered_data['roles'] = $user->roles;
+				$registered_data['country'] = $user->field_country['und'][0]['value'];
+				$registered_data['is_error'] = 0;
+				// Set operation.
+				$op = 'register_no_approval_required';
+				//echo "<pre>";print_r($account);exit;
+				
+				// Send an email.
+				_user_mail_notify($op, $account);
+				echo drupal_json_output($registered_data);exit;
+		}	
+	}
+	
+	//Alter the response once the user logs in the system
+	if ($controller['callback'] == '_user_resource_login') {
+		
+		$data=array();
+		$result_data = array();
+		if(empty($result)){
+			$data['is_error'] = 1;
+			$data['error_message'] = 'Wrong Email or password';
+			echo drupal_json_output($data);exit;
+		}else if(!empty($result)){
+			//User Logs in the system and we get the following response in it
+			$result_data['sessid'] = $result->sessid;
+			$result_data['session_name'] = $result->session_name;
+			$result_data['id'] = $result->user->uid;
+			$result_data['name'] = $result->user->name;
+			$result_data['mail'] = $result->user->mail;
+			$result_data['created'] = $result->user->created;
+			$result_data['access'] = $result->user->access;
+			$result_data['login'] = $result->user->login;
+			$result_data['status'] = $result->user->status;
+			$result_data['timezone'] = $result->user->timezone;
+			$result_data['roles'] = $result->user->roles;
+			$result_data['country'] = $result->user->field_country['und'][0]['value'];
+			$result_data['is_error'] = 0;
+			echo drupal_json_output($result_data);exit;
+		}else{
+			$data['is_error'] = 2;
+			$data['error_message'] = 'Request Timeout error';
+			echo drupal_json_output($data);exit;
+		}		
+	}	
+}	
+?>
